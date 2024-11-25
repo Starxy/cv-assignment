@@ -7,9 +7,31 @@ SSD目标检测模型训练模块
 
 import torch
 from torch import nn
-from torchvision.ops import box_iou  # 替换自定义的box_iou
 from ssd import TinySSD
 from utils import Timer, Animator, Accumulator
+import os
+from datetime import datetime
+
+def box_iou(boxes1, boxes2):
+    """计算两个锚框或边界框列表中成对的交并比"""
+    box_area = lambda boxes: ((boxes[:, 2] - boxes[:, 0]) *
+                              (boxes[:, 3] - boxes[:, 1]))
+    # boxes1,boxes2,areas1,areas2的形状:
+    # boxes1：(boxes1的数量,4),
+    # boxes2：(boxes2的数量,4),
+    # areas1：(boxes1的数量,),
+    # areas2：(boxes2的数量,)
+    areas1 = box_area(boxes1)
+    areas2 = box_area(boxes2)
+    # inter_upperlefts,inter_lowerrights,inters的形状:
+    # (boxes1的数量,boxes2的数量,2)
+    inter_upperlefts = torch.max(boxes1[:, None, :2], boxes2[:, :2])
+    inter_lowerrights = torch.min(boxes1[:, None, 2:], boxes2[:, 2:])
+    inters = (inter_lowerrights - inter_upperlefts).clamp(min=0)
+    # inter_areasandunion_areas的形状:(boxes1的数量,boxes2的数量)
+    inter_areas = inters[:, :, 0] * inters[:, :, 1]
+    union_areas = areas1[:, None] + areas2 - inter_areas
+    return inter_areas / union_areas
 
 def assign_anchor_to_bbox(ground_truth, anchors, device, iou_threshold=0.5):
     """将最接近的真实边界框分配给锚框"""
@@ -42,118 +64,84 @@ def multibox_target(anchors, labels):
     device, num_anchors = anchors.device, anchors.shape[0]
     for i in range(batch_size):
         label = labels[i, :, :]
-        anchors_bbox_map = assign_anchor_to_bbox(
-            label[:, 1:], anchors, device)
-        bbox_mask = ((anchors_bbox_map >= 0).float().unsqueeze(-1)).repeat(
-            1, 4)
-        # 将类标签和分配的边界框坐标初始化为零
-        class_labels = torch.zeros(num_anchors, dtype=torch.long,
-                                   device=device)
-        assigned_bb = torch.zeros((num_anchors, 4), dtype=torch.float32,
-                                  device=device)
-        # 使用真实边界框来标记锚框的类别。
-        # 如果一个锚框没有被分配，标记其为背景（值为零）
-        indices_true = torch.nonzero(anchors_bbox_map >= 0)
-        bb_idx = anchors_bbox_map[indices_true]
-        class_labels[indices_true] = label[bb_idx, 0].long() + 1
-        assigned_bb[indices_true] = label[bb_idx, 1:]
-        # 偏移量转换
-        offset = offset_boxes(anchors, assigned_bb) * bbox_mask
-        batch_offset.append(offset.reshape(-1))
-        batch_mask.append(bbox_mask.reshape(-1))
-        batch_class_labels.append(class_labels)
+        # 过滤掉无效的标签（类别为-1的标签）
+        valid_labels = label[label[:, 0] >= 0]
+        
+        if len(valid_labels) == 0:
+            # 如果没有有效标签，将所有锚框标记为背景
+            class_labels = torch.zeros(num_anchors, dtype=torch.long, device=device)
+            assigned_bb = torch.zeros((num_anchors, 4), dtype=torch.float32, device=device)
+            bbox_mask = torch.zeros((num_anchors, 4), dtype=torch.float32, device=device)
+        else:
+            # 只使用有效标签进行分配
+            anchors_bbox_map = assign_anchor_to_bbox(
+                valid_labels[:, 1:], anchors, device)
+            bbox_mask = ((anchors_bbox_map >= 0).float().unsqueeze(-1)).repeat(
+                1, 4)
+            # 将类标签和分配的边界框坐标初始化为零
+            class_labels = torch.zeros(num_anchors, dtype=torch.long,
+                                       device=device)
+            assigned_bb = torch.zeros((num_anchors, 4), dtype=torch.float32,
+                                      device=device)
+            # 使用真实边界框来标记锚框的类别。
+            # 如果一个锚框没有被分配，标记其为背景（值为零）
+            indices_true = torch.nonzero(anchors_bbox_map >= 0)
+            bb_idx = anchors_bbox_map[indices_true]
+            class_labels[indices_true] = valid_labels[bb_idx, 0].long() + 1
+            assigned_bb[indices_true] = valid_labels[bb_idx, 1:]
+            # 偏移量转换
+            offset = offset_boxes(anchors, assigned_bb) * bbox_mask
+            batch_offset.append(offset.reshape(-1))
+            batch_mask.append(bbox_mask.reshape(-1))
+            batch_class_labels.append(class_labels)
     bbox_offset = torch.stack(batch_offset)
     bbox_mask = torch.stack(batch_mask)
     class_labels = torch.stack(batch_class_labels)
     return (bbox_offset, bbox_mask, class_labels)
 
+def box_center_to_corner(boxes):
+    """从（中间，宽度，高度）转换到（左上，右下）"""
+    cx, cy, w, h = boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3]
+    x1 = cx - 0.5 * w
+    y1 = cy - 0.5 * h
+    x2 = cx + 0.5 * w
+    y2 = cy + 0.5 * h
+    boxes = torch.stack((x1, y1, x2, y2), axis=-1)
+    return boxes
+
+def box_corner_to_center(boxes):
+    """从（左上，右下）转换到（中间，宽度，高度）"""
+    x1, y1, x2, y2 = boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3]
+    cx = (x1 + x2) / 2
+    cy = (y1 + y2) / 2
+    w = x2 - x1
+    h = y2 - y1
+    boxes = torch.stack((cx, cy, w, h), axis=-1)
+    return boxes
+
+def offset_boxes(anchors, assigned_bb, eps=1e-6):
+    """对锚框偏移量的转换"""
+    c_anc = box_corner_to_center(anchors)
+    c_assigned_bb = box_corner_to_center(assigned_bb)
+    offset_xy = 10 * (c_assigned_bb[:, :2] - c_anc[:, :2]) / c_anc[:, 2:]
+    offset_wh = 5 * torch.log(eps + c_assigned_bb[:, 2:] / c_anc[:, 2:])
+    offset = torch.cat([offset_xy, offset_wh], axis=1)
+    return offset
+
 def calc_loss(cls_preds, cls_labels, bbox_preds, bbox_labels, bbox_masks):
-    """计算分类和边界框预测的损失"""
-    batch_size, num_classes = cls_preds.shape[0], cls_preds.shape[2]
     cls_loss = nn.CrossEntropyLoss(reduction='none')
     bbox_loss = nn.L1Loss(reduction='none')
-    
+    batch_size, num_classes = cls_preds.shape[0], cls_preds.shape[2]
     cls = cls_loss(cls_preds.reshape(-1, num_classes),
                    cls_labels.reshape(-1)).reshape(batch_size, -1).mean(dim=1)
     bbox = bbox_loss(bbox_preds * bbox_masks,
                      bbox_labels * bbox_masks).mean(dim=1)
     return cls + bbox
 
-def calculate_map(pred_boxes, pred_scores, pred_labels, true_boxes, true_labels, iou_threshold=0.5):
-    """计算mAP
-    Args:
-        pred_boxes: 预测框 [N, 4]
-        pred_scores: 预测分数 [N]
-        pred_labels: 预测类别 [N]
-        true_boxes: 真实框 [M, 4]
-        true_labels: 真实类别 [M]
-        iou_threshold: IoU阈值
-    """
-    ap_per_class = {}
-    
-    # 对每个类别分别计算AP
-    unique_labels = torch.unique(torch.cat([pred_labels, true_labels]))
-    
-    for c in unique_labels:
-        # 获取该类别的预测和真实框
-        class_pred_mask = pred_labels == c
-        class_true_mask = true_labels == c
-        
-        if not class_true_mask.any():  # 如果没有真实框，跳过
-            continue
-            
-        class_pred_boxes = pred_boxes[class_pred_mask]
-        class_pred_scores = pred_scores[class_pred_mask]
-        class_true_boxes = true_boxes[class_true_mask]
-        
-        if len(class_pred_boxes) == 0:  # 如果没有预测框，AP为0
-            ap_per_class[int(c)] = 0
-            continue
-            
-        # 按置信度排序
-        sorted_indices = torch.argsort(class_pred_scores, descending=True)
-        class_pred_boxes = class_pred_boxes[sorted_indices]
-        class_pred_scores = class_pred_scores[sorted_indices]
-        
-        # 计算TP和FP
-        tp = torch.zeros(len(class_pred_boxes))
-        fp = torch.zeros(len(class_pred_boxes))
-        
-        for pred_idx, pred_box in enumerate(class_pred_boxes):
-            if len(class_true_boxes) == 0:
-                fp[pred_idx] = 1
-                continue
-                
-            # 计算与所有真实框的IoU
-            ious = box_iou(pred_box.unsqueeze(0), class_true_boxes)
-            max_iou, max_idx = torch.max(ious, dim=1)
-            
-            if max_iou >= iou_threshold:
-                tp[pred_idx] = 1
-                # 移除已匹配的真实框
-                class_true_boxes = torch.cat([class_true_boxes[:max_idx], 
-                                           class_true_boxes[max_idx+1:]])
-            else:
-                fp[pred_idx] = 1
-        
-        # 计算precision和recall
-        tp_cumsum = torch.cumsum(tp, dim=0)
-        fp_cumsum = torch.cumsum(fp, dim=0)
-        recalls = tp_cumsum / len(class_true_mask)
-        precisions = tp_cumsum / (tp_cumsum + fp_cumsum)
-        
-        # 计算AP
-        ap = torch.trapz(precisions, recalls)
-        ap_per_class[int(c)] = float(ap)
-    
-    # 计算mAP
-    return sum(ap_per_class.values()) / len(ap_per_class) if ap_per_class else 0
-
 def evaluate_accuracy(net, data_iter, device):
-    """评估模型的分类和边界框预测准确性，包括mAP"""
+    """评估模型的分类和边界框预测准确性"""
     net.eval()
     metric = Accumulator(4)  # 分类正确数、分类总数、bbox误差和、bbox总数
-    all_maps = []
     
     with torch.no_grad():
         for features, target in data_iter:
@@ -162,21 +150,7 @@ def evaluate_accuracy(net, data_iter, device):
             anchors, cls_preds, bbox_preds = net(X)
             bbox_labels, bbox_masks, cls_labels = multibox_target(anchors, Y)
             
-            # 获取预测的边界框、分数和类别
-            pred_scores = torch.max(cls_preds.softmax(dim=-1), dim=-1)[0]
-            pred_labels = cls_preds.argmax(dim=-1)
-            
-            # 对每个批次计算mAP
-            batch_map = calculate_map(
-                bbox_preds[bbox_masks.bool()].reshape(-1, 4),
-                pred_scores[bbox_masks.bool().squeeze(-1)],
-                pred_labels[bbox_masks.bool().squeeze(-1)],
-                Y[:, :, 1:],  # 真实框坐标
-                Y[:, :, 0].long()  # 真实框类别
-            )
-            all_maps.append(batch_map)
-            
-            # 原有的评估指标
+            # 评估指标
             cls_acc = float((cls_preds.argmax(dim=-1).type(
                 cls_labels.dtype) == cls_labels).sum())
             bbox_mae = float((torch.abs((bbox_labels - bbox_preds) * bbox_masks)).sum())
@@ -186,12 +160,15 @@ def evaluate_accuracy(net, data_iter, device):
     
     cls_err = 1 - metric[0] / metric[1]
     bbox_mae = metric[2] / metric[3]
-    mean_map = sum(all_maps) / len(all_maps)
     
-    return cls_err, bbox_mae, mean_map
+    return cls_err, bbox_mae
 
-def train(net, train_iter, val_iter, num_epochs, lr, device, title="SSD Training"):
-    """训练SSD模型的主函数"""
+def train(net, train_iter, val_iter, num_epochs, lr, device, save_model=True, title="SSD Training"):
+    """
+    训练SSD模型的主函数
+    Args:
+        save_model (bool): 是否保存模型，默认为True
+    """
     print(f'training on {device}')
     net.to(device)
     
@@ -200,8 +177,8 @@ def train(net, train_iter, val_iter, num_epochs, lr, device, title="SSD Training
     
     # 创建动画器
     animator = Animator(xlabel='epoch', xlim=[1, num_epochs],
-                       legend=['train cls error', 'train bbox mae', 'train mAP',
-                              'val cls error', 'val bbox mae', 'val mAP'],
+                       legend=['train cls error', 'train bbox mae',
+                              'val cls error', 'val bbox mae'],
                        title=title)
     
     timer = Timer()
@@ -209,15 +186,16 @@ def train(net, train_iter, val_iter, num_epochs, lr, device, title="SSD Training
         # 训练阶段
         metric = Accumulator(4)
         net.train()
-        all_train_maps = []  # 用于存储训练集的mAP
         
         for features, target in train_iter:
             timer.start()
             optimizer.zero_grad()
             X, Y = features.to(device), target.to(device)
             
-            # 前向传播
+            # 获取锚框、类别预测和边界框预测
             anchors, cls_preds, bbox_preds = net(X)
+
+            # 获取真实边界框标签和掩码
             bbox_labels, bbox_masks, cls_labels = multibox_target(anchors, Y)
             
             # 计算损失并反向传播
@@ -225,21 +203,7 @@ def train(net, train_iter, val_iter, num_epochs, lr, device, title="SSD Training
             l.mean().backward()
             optimizer.step()
             
-            # 计算训练指标
-            pred_scores = torch.max(cls_preds.softmax(dim=-1), dim=-1)[0]
-            pred_labels = cls_preds.argmax(dim=-1)
-            
-            # 计算当前批次的mAP
-            batch_map = calculate_map(
-                bbox_preds[bbox_masks.bool()].reshape(-1, 4),
-                pred_scores[bbox_masks.bool().squeeze(-1)],
-                pred_labels[bbox_masks.bool().squeeze(-1)],
-                Y[:, :, 1:],
-                Y[:, :, 0].long()
-            )
-            all_train_maps.append(batch_map)
-            
-            # 评估其他指标
+            # 评估指标
             cls_acc = float((cls_preds.argmax(dim=-1).type(
                 cls_labels.dtype) == cls_labels).sum())
             bbox_mae = float((torch.abs((bbox_labels - bbox_preds) * bbox_masks)).sum())
@@ -250,31 +214,43 @@ def train(net, train_iter, val_iter, num_epochs, lr, device, title="SSD Training
         # 计算训练集指标
         train_cls_err = 1 - metric[0] / metric[1]
         train_bbox_mae = metric[2] / metric[3]
-        train_map = sum(all_train_maps) / len(all_train_maps)  # 计算平均mAP
         
         # 计算验证集指标
         if val_iter is not None:
-            val_cls_err, val_bbox_mae, val_map = evaluate_accuracy(net, val_iter, device)
+            val_cls_err, val_bbox_mae = evaluate_accuracy(net, val_iter, device)
         else:
-            val_cls_err, val_bbox_mae, val_map = None, None, None
+            val_cls_err, val_bbox_mae = None, None
         
         # 更新动画
         animator.add(epoch + 1, 
-                    (train_cls_err, train_bbox_mae, train_map,
-                     val_cls_err, val_bbox_mae, val_map))
+                    (train_cls_err, train_bbox_mae,
+                     val_cls_err, val_bbox_mae))
     
     # 设置并保存最终结果
     final_results = (f'Final Results:\n'
                     f'Train Class Error: {train_cls_err:.3f}\n'
                     f'Train Bbox MAE: {train_bbox_mae:.3f}\n'
-                    f'Train mAP: {train_map:.3f}\n'
                     f'Val Class Error: {val_cls_err:.3f}\n'
-                    f'Val Bbox MAE: {val_bbox_mae:.3f}\n'
-                    f'Val mAP: {val_map:.3f}')
-    # animator.set_results(final_results)
+                    f'Val Bbox MAE: {val_bbox_mae:.3f}\n')
     animator.save()
     
     # 打印训练统计信息
     print(f'{title} with learning rate {lr}:')
     print(final_results)
     print(f'{len(train_iter.dataset) / timer.sum():.1f} examples/sec on {device}')
+    
+    # 在训练循环结束后，保存模型
+    if save_model:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        model_save_path = f'checkpoints/ssd_model_{timestamp}.pth'
+        os.makedirs('checkpoints', exist_ok=True)
+        torch.save({
+            'model_state_dict': net.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'epoch': num_epochs,
+            'train_cls_err': train_cls_err,
+            'train_bbox_mae': train_bbox_mae,
+            'val_cls_err': val_cls_err,
+            'val_bbox_mae': val_bbox_mae
+        }, model_save_path)
+        print(f'模型已保存至 {model_save_path}')

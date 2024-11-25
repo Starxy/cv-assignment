@@ -7,12 +7,13 @@ from pathlib import Path
 
 class BloodCellDataset(Dataset):
     """血细胞检测数据集的自定义数据集类"""
-    def __init__(self, json_file, img_dir, is_train=True):
+    def __init__(self, json_file, img_dir, is_train=True, max_objects=10):
         """
         Args:
             json_file: COCO格式标注文件的路径
             img_dir: 图片目录的路径
             is_train: 是否为训练集
+            max_objects: 每张图片最大目标数量
         """
         self.img_dir = img_dir
         # 加载COCO格式的标注
@@ -31,6 +32,7 @@ class BloodCellDataset(Dataset):
             self.img_to_anns[img_id].append(ann)
             
         print(f'read {len(self.images)} {"training" if is_train else "validation"} examples')
+        self.max_objects = max_objects
 
     def __getitem__(self, idx):
         # 获取图片信息
@@ -63,27 +65,22 @@ class BloodCellDataset(Dataset):
         if not targets:
             targets.append([-1, 0, 0, 0, 0])
             
+        if len(targets) == 0:
+            # 如果没有标注，填充max_objects个无效标注
+            targets = [[-1, 0, 0, 0, 0]] * self.max_objects
+        else:
+            # 如果标注数量不足max_objects，用无效标注填充
+            if len(targets) < self.max_objects:
+                padding = [[-1, 0, 0, 0, 0]] * (self.max_objects - len(targets))
+                targets.extend(padding)
+            # 如果标注数量超过max_objects，截断
+            elif len(targets) > self.max_objects:
+                targets = targets[:self.max_objects]
+            
         return image, torch.tensor(targets)
 
     def __len__(self):
         return len(self.images)
-
-def collate_fn(batch):
-    """自定义整理函数，处理不同数量的目标框
-    
-    Args:
-        batch: 一个包含(image, targets)元组的列表
-    Returns:
-        images: 堆叠后的图片张量
-        targets: 列表，包含每张图片的目标框
-    """
-    images = []
-    targets = []
-    for img, target in batch:
-        images.append(img)
-        targets.append(target)
-    images = torch.stack(images, 0)
-    return images, targets
 
 def load_data_blood_cell(batch_size, data_dir='object_detection/blood_cell_detection'):
     """加载血细胞检测数据集
@@ -108,10 +105,8 @@ def load_data_blood_cell(batch_size, data_dir='object_detection/blood_cell_detec
     )
     
     train_iter = DataLoader(train_dataset, batch_size=batch_size, 
-                          shuffle=True, num_workers=2,
-                          collate_fn=collate_fn)
+                          shuffle=True, num_workers=2)
     val_iter = DataLoader(val_dataset, batch_size=batch_size,
-                         shuffle=False, num_workers=2,
-                         collate_fn=collate_fn)
+                         shuffle=False, num_workers=2)
     
     return train_iter, val_iter

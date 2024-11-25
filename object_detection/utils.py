@@ -109,10 +109,6 @@ class Animator:
             axes.legend(legend)
         axes.grid()
 
-    def set_hyperparameters(self, hyperparameters):
-        """设置要在图表上显示的超参数"""
-        self.hyperparameters = hyperparameters
-
     def set_results(self, results):
         """设置要在图表上显示的注释文字"""
         self.results = results
@@ -133,19 +129,6 @@ class Animator:
                 fontsize=8
             )
         
-        # 如果有超参数，添加到图表上
-        if self.hyperparameters:
-            # 将超参数字典转换为字符串格式
-            hyperparams_str = f"Batch Size={self.hyperparameters.get('bs', 'N/A')}\n" \
-                            f"Learning Rate={self.hyperparameters.get('lr', 'N/A')}"
-            self.axes[0].text(
-                0.02, 0.02, hyperparams_str,
-                transform=self.axes[0].transAxes,
-                verticalalignment='bottom',
-                horizontalalignment='left',
-                bbox=dict(facecolor='white', alpha=0.8, edgecolor='none'),
-                fontsize=8
-            )
         
         # 使用constrained_layout自动调整布局
         self.fig.set_constrained_layout(True)
@@ -153,6 +136,6 @@ class Animator:
         # 将标题转换为文件名格式（小写+下划线）
         # 获取当前时间戳
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        # 构建文件名,包含bs、lr和时间戳
-        save_path = f"{self.title.lower().replace(' ', '_')}_bs{self.hyperparameters.get('bs', 'NA')}_lr{self.hyperparameters.get('lr', 'NA')}_{timestamp}.png"
+        # 构建文件名,包含时间戳
+        save_path = f"{self.title.lower().replace(' ', '_')}_{timestamp}.png"
         self.fig.savefig(save_path, dpi=300, bbox_inches='tight')
