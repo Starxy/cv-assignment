@@ -36,6 +36,7 @@ ENV/
 
 # 数据集和模型文件
 data/
+*.pkl
 *.pth
 *.pt
 *.h5
