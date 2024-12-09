@@ -72,15 +72,15 @@
 \newpage
 \section{引言}
 
-图像修复是计算机视觉领域的一项重要任务，其目标是从受损或有噪声的图像中恢复出原始图像。传统的图像修复方法通常依赖于图像的统计特性，而深度学习方法则通过学习数据中的模式来实现更为精确的修复。Noise2Noise 是一种无需干净图像作为训练目标的图像修复方法，通过学习噪声图像之间的映射关系来实现图像去噪。
+图像在采集、传输和存储过程中往往会受到噪声的干扰，导致图像质量下降，影响后续的图像分析和处理任务。因此，图像去噪成为图像处理中的一个重要研究课题。传统的图像去噪方法如均值滤波、中值滤波等在一定程度上能够减少噪声，但往往会模糊图像的细节。近年来，基于深度学习的方法如 noise2noise 为图像去噪带来了新的思路和突破。
 
 本实验将通过实现 Noise2Noise 模型，深入理解其基本原理和实现方法。
 
 \section{实验目的}
 本次实验主要围绕 Noise2Noise 图像修复模型展开，通过理论学习和实践操作，达到以下目的：
 \begin{enumerate}
-    \item \textbf{理解 Noise2Noise 的核心设计思想}：掌握无需干净图像作为训练目标的去噪方法，理解其相比传统去噪方法的优势。
-    \item \textbf{掌握 Noise2Noise 的网络结构设计}：理解基础网络在特征提取中的作用，掌握损失函数的设计原则。
+    \item \textbf{理解 Noise2Noise 的核心设计思想}：掌握 noise2noise 的去噪方法，理解其相比传统去噪方法的优势。
+    \item \textbf{理解 Noise2Noise 的架构设计}：理解编码器-解码器结构在图像重建中的作用，掌握跳跃连接对特征保留的重要性。
     \item \textbf{实现简单的 Noise2Noise 模型}：手动实现 Noise2Noise 的核心组件，在一个较简单的数据集上训练和测试模型。
 \end{enumerate}
 
@@ -95,7 +95,7 @@
 
 \subsection{数据集}
 
-本次实验使用的训练数据来自 ImageNet32x32 中的 6250 张图像。每张图片随即添加了高斯噪音，为方便加载，使用了 pytorch 的 pickle 文件格式。
+本次实验使用的训练数据来自 ImageNet32x32 中抽取的 6250 张图像。每张图片随即添加了高斯噪音，为方便加载数据集，使用了 pytorch 的 pickle 文件格式对数据集进行打包。
 
 \section{Noise2Noise模型设计与实现}
 \subsection{整体架构}
@@ -133,12 +133,6 @@ Noise2Noise 模型采用模块化设计,主要由编码器和解码器两部分�
 \end{itemize}
 
 \subsection{训练策略}
-\subsubsection{数据预处理}
-\begin{itemize}
-    \item 输入图像归一化到 [0,1] 范围
-    \item 采用自定义数据集类进行批处理
-    \item 实现数据增强策略
-\end{itemize}
 
 \subsubsection{超参数调优}
 为了获得更好的 PSNR 分数,我们尝试了不同的修改和超参数调整,如不同的激活函数、引入批量归一化和优化器的学习率。
@@ -181,7 +175,7 @@ Noise2Noise 模型采用模块化设计,主要由编码器和解码器两部分�
 \subsection{训练过程分析}
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.8\textwidth]{picture/noise2noise_training_curve.png}
+    \includegraphics[width=0.8\textwidth]{picture/training_loss.png}
     \caption{Noise2Noise模型训练过程中的损失变化曲线}
     \label{fig:training_curve}
 \end{figure}
@@ -189,9 +183,9 @@ Noise2Noise 模型采用模块化设计,主要由编码器和解码器两部分�
 \begin{itemize}
     \item \textbf{损失变化}：
     \begin{itemize}
-        \item 在训练初期损失快速下降，表明模型开始学习噪声图像之间的映射关系
-        \item 之后进入平稳期，损失缓慢下降
-        \item 最终趋于稳定，表明模型去噪能力得到了良好训练
+        \item 训练初期，损失值急剧下降，模型能够迅速捕捉含噪图像间的映射关系。
+        \item 随后进入平稳下降阶段，模型在此期间进行参数微调，持续优化其去噪能力。
+        \item 最终趋于稳定，表明模型去噪能力得到了良好训练。
     \end{itemize}
 \end{itemize}
 
@@ -206,7 +200,7 @@ Noise2Noise 模型采用模块化设计,主要由编码器和解码器两部分�
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.9\textwidth]{picture/noise2noise_results.jpg}
+    \includegraphics[width=0.9\textwidth]{picture/output.png}
     \caption{Noise2Noise模型在不同噪声类型下的推理结果}
     \label{fig:detection_results}
 \end{figure}
