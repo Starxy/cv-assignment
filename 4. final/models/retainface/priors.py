@@ -1,8 +1,9 @@
 import math
 from itertools import product
 import numpy as np
+from typing import Tuple
 
-# RetinaFace的默认配置
+# RetinaFace 的默认配置
 RETINAFACE_CONFIG = {
     'min_sizes': [[16, 32], [64, 128], [256, 512]],  # 每个特征图层的先验框最小尺寸
     'steps': [8, 16, 32],  # 特征图相对于原图的步长
@@ -10,7 +11,15 @@ RETINAFACE_CONFIG = {
     'clip': False,  # 是否将先验框坐标裁剪到[0,1]范围内
 }
 
-def generate_priors(image_size, config=None):
+# BlazeFace 的默认配置
+BLAZEFACE_CONFIG = {
+    'min_sizes': [[8, 11], [14, 19, 26, 38, 64, 149]],  # 每个特征图层的先验框最小尺寸
+    'steps': [8, 16],  # 特征图相对于原图的步长
+    'variance': [0.1, 0.2],  # 用于边界框编码和解码的方差
+    'clip': False,  # 是否将先验框坐标裁剪到[0,1]范围内
+}
+
+def generate_priors(image_size: Tuple[int, int], config=None):
     """
     生成RetinaFace的先验框
     Args:

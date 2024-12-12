@@ -12,91 +12,45 @@ import argparse
 import numpy as np
 from scipy.io import loadmat
 from bbox import bbox_overlaps
-from IPython import embed
 
 
 def get_gt_boxes(gt_dir):
-    """从mat文件加载ground truth标注框
-    gt_dir: 包含以下mat文件的目录
-        - wider_face_val.mat: 所有标注框
-        - wider_hard_val.mat: 困难样本标注
-        - wider_medium_val.mat: 中等难度样本标注  
-        - wider_easy_val.mat: 简单样本标注
+    """获取真实标注框
+    参数:
+        gt_dir: 包含wider_face_val.mat、wider_easy_val.mat、wider_medium_val.mat、wider_hard_val.mat的目录
+    返回:
+        facebox_list: 人脸框列表
+        event_list: 事件列表
+        file_list: 文件列表
+        hard_gt_list: 困难样本列表
+        medium_gt_list: 中等样本列表
+        easy_gt_list: 简单样本列表
     """
+
     gt_mat = loadmat(os.path.join(gt_dir, 'wider_face_val.mat'))
     hard_mat = loadmat(os.path.join(gt_dir, 'wider_hard_val.mat'))
     medium_mat = loadmat(os.path.join(gt_dir, 'wider_medium_val.mat'))
     easy_mat = loadmat(os.path.join(gt_dir, 'wider_easy_val.mat'))
 
-    facebox_list = gt_mat['face_bbx_list']  # 人脸边界框列表
-    event_list = gt_mat['event_list']  # 事件列表
-    file_list = gt_mat['file_list']  # 文件列表
+    facebox_list = gt_mat['face_bbx_list']
+    event_list = gt_mat['event_list']
+    file_list = gt_mat['file_list']
 
-    hard_gt_list = hard_mat['gt_list']  # 困难样本ground truth列表
-    medium_gt_list = medium_mat['gt_list']  # 中等难度样本ground truth列表
-    easy_gt_list = easy_mat['gt_list']  # 简单样本ground truth列表
+    hard_gt_list = hard_mat['gt_list']
+    medium_gt_list = medium_mat['gt_list']
+    easy_gt_list = easy_mat['gt_list']
 
     return facebox_list, event_list, file_list, hard_gt_list, medium_gt_list, easy_gt_list
 
-
-def get_gt_boxes_from_txt(gt_path, cache_dir):
-    """从txt文件加载ground truth标注框,支持缓存加速
-    
-    Args:
-        gt_path: ground truth txt文件路径
-        cache_dir: 缓存目录
-    """
-    cache_file = os.path.join(cache_dir, 'gt_cache.pkl')
-    if os.path.exists(cache_file):
-        f = open(cache_file, 'rb')
-        boxes = pickle.load(f)
-        f.close()
-        return boxes
-
-    f = open(gt_path, 'r')
-    state = 0
-    lines = f.readlines()
-    lines = list(map(lambda x: x.rstrip('\r\n'), lines))
-    boxes = {}
-    print(len(lines))
-    f.close()
-    current_boxes = []
-    current_name = None
-    for line in lines:
-        if state == 0 and '--' in line:
-            state = 1
-            current_name = line
-            continue
-        if state == 1:
-            state = 2
-            continue
-
-        if state == 2 and '--' in line:
-            state = 1
-            boxes[current_name] = np.array(current_boxes).astype('float32')
-            current_name = line
-            current_boxes = []
-            continue
-
-        if state == 2:
-            box = [float(x) for x in line.split(' ')[:4]]
-            current_boxes.append(box)
-            continue
-
-    f = open(cache_file, 'wb')
-    pickle.dump(boxes, f)
-    f.close()
-    return boxes
-
-
 def read_pred_file(filepath):
     """读取预测结果文件
-    
-    Args:
+    参数:
         filepath: 预测结果文件路径
-    Returns:
-        图片文件名和预测框数组
+    返回:
+        img_file: 图片文件名
+        boxes: 预测框数组
     """
+
     with open(filepath, 'r') as f:
         lines = f.readlines()
         img_file = lines[0].rstrip('\n\r')
@@ -107,19 +61,18 @@ def read_pred_file(filepath):
 
 
 def get_preds(pred_dir):
-    """读取所有预测结果
-    
-    Args:
+    """获取所有预测结果
+    参数:
         pred_dir: 预测结果目录
-    Returns:
-        预测结果字典
+    返回:
+        boxes: 预测框字典,格式为{event:{img:boxes}}
     """
     events = os.listdir(pred_dir)
     boxes = dict()
     pbar = tqdm.tqdm(events)
 
     for event in pbar:
-        pbar.set_description('Reading Predictions ')
+        pbar.set_description('读取预测结果')
         event_dir = os.path.join(pred_dir, event)
         event_images = os.listdir(event_dir)
         current_event = dict()
@@ -132,10 +85,10 @@ def get_preds(pred_dir):
 
 def norm_score(pred):
     """归一化预测分数
-    
-    Args:
-        pred: 预测结果字典 {key: [[x1,y1,x2,y2,score]]}
+    参数:
+        pred: 预测结果字典,格式为{key: [[x1,y1,x2,y2,s]]}
     """
+
     max_score = 0
     min_score = 1
 
@@ -158,16 +111,16 @@ def norm_score(pred):
 
 def image_eval(pred, gt, ignore, iou_thresh):
     """单张图片评估
-    
-    Args:
-        pred: 预测框 Nx5
-        gt: ground truth框 Nx4  
-        ignore: 忽略标记
+    参数:
+        pred: Nx5的预测框数组
+        gt: Nx4的真实框数组
+        ignore: 忽略标记数组
         iou_thresh: IOU阈值
-    Returns:
-        pred_recall: 每个预测框的召回率
-        proposal_list: 预测框标记列表
+    返回:
+        pred_recall: 预测框召回率
+        proposal_list: 提议框列表
     """
+
     _pred = pred.copy()
     _gt = gt.copy()
     pred_recall = np.zeros(_pred.shape[0])
@@ -199,14 +152,13 @@ def image_eval(pred, gt, ignore, iou_thresh):
 
 def img_pr_info(thresh_num, pred_info, proposal_list, pred_recall):
     """计算单张图片的PR信息
-    
-    Args:
+    参数:
         thresh_num: 阈值数量
         pred_info: 预测信息
-        proposal_list: 预测框标记列表
+        proposal_list: 提议框列表
         pred_recall: 预测框召回率
-    Returns:
-        pr_info: PR曲线信息
+    返回:
+        pr_info: PR信息数组
     """
     pr_info = np.zeros((thresh_num, 2)).astype('float')
     for t in range(thresh_num):
@@ -226,12 +178,11 @@ def img_pr_info(thresh_num, pred_info, proposal_list, pred_recall):
 
 def dataset_pr_info(thresh_num, pr_curve, count_face):
     """计算数据集的PR信息
-    
-    Args:
+    参数:
         thresh_num: 阈值数量
         pr_curve: PR曲线
         count_face: 人脸计数
-    Returns:
+    返回:
         _pr_curve: 处理后的PR曲线
     """
     _pr_curve = np.zeros((thresh_num, 2))
@@ -243,13 +194,13 @@ def dataset_pr_info(thresh_num, pr_curve, count_face):
 
 def voc_ap(rec, prec):
     """计算平均精度(AP)
-    
-    Args:
+    参数:
         rec: 召回率数组
         prec: 精确率数组
-    Returns:
+    返回:
         ap: 平均精度
     """
+
     # 正确的AP计算
     # 首先在末尾添加哨兵值
     mrec = np.concatenate(([0.], rec, [1.]))
@@ -259,20 +210,28 @@ def voc_ap(rec, prec):
     for i in range(mpre.size - 1, 0, -1):
         mpre[i - 1] = np.maximum(mpre[i - 1], mpre[i])
 
-    # 寻找召回率变化的点来计算PR曲线下的面积
+    # 寻找X轴(召回率)变化的点
     i = np.where(mrec[1:] != mrec[:-1])[0]
 
-    # 计算AP = Σ(Δ召回率 × 精度)
+    # 计算AP = Σ(Δrecall × precision)
     ap = np.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])
     return ap
 
-
 def evaluation(pred, gt_path, iou_thresh=0.5):
-    """评估检测器性能
-    
-    Args:
-        pred: 预测结果目录
-        gt_path: ground truth路径
+    """评估函数
+    参数:
+        pred: 预测结果目录,目录结构为:
+             pred/
+                event_name1/
+                    image_name1.txt  # 每个txt文件包含检测框信息
+                    image_name2.txt
+                    ...
+                event_name2/
+                    image_name1.txt
+                    image_name2.txt
+                    ...
+                ...
+        gt_path: 真实标注目录
         iou_thresh: IOU阈值,默认0.5
     """
     pred = get_preds(pred)
@@ -291,7 +250,7 @@ def evaluation(pred, gt_path, iou_thresh=0.5):
         # [hard, medium, easy]
         pbar = tqdm.tqdm(range(event_num))
         for i in pbar:
-            pbar.set_description('Processing {}'.format(settings[setting_id]))
+            pbar.set_description('处理 {}'.format(settings[setting_id]))
             event_name = str(event_list[i][0][0])
             img_list = file_list[i][0]
             pred_list = pred[event_name]
@@ -335,7 +294,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--pred')
-    parser.add_argument('-g', '--gt', default='/Users/Vic/Downloads/eval_tools/ground_truth/')
+    parser.add_argument('-g', '--gt', default='C:/Project/ai/cv-assignment/4. final/eval/widerface_evaluate/ground_truth')
 
     args = parser.parse_args()
     evaluation(args.pred, args.gt)

@@ -1,184 +1,181 @@
 import numpy as np
 import cv2
 from .base_inference import BaseONNXInference
+from models.retainface.priors import generate_priors, decode_boxes, decode_landmarks, BLAZEFACE_CONFIG
 
 class BlazeFaceInference(BaseONNXInference):
     def __init__(
         self,
-        model_path,
-        anchors_path,
-        conf_threshold=0.75,
-        nms_threshold=0.3,
-        input_size=(128, 128)
+        model_path: str,
+        conf_threshold: float = 0.02,
+        nms_threshold: float = 0.4,
+        input_size: tuple = (640, 640),
+        prior_config: dict = None
     ):
         super().__init__(
             model_path=model_path,
             conf_threshold=conf_threshold,
             nms_threshold=nms_threshold,
-            input_size=input_size
         )
-        self.anchors = np.load(anchors_path).astype(np.float32)
-        
-        # BlazeFace特定参数
-        self.num_anchors = 896
-        self.num_classes = 1
-        self.num_coords = 16
-        self.score_clipping_thresh = 100.0
-        
-        # 坐标解码用的缩放参数
-        self.x_scale = 128.0
-        self.y_scale = 128.0
-        self.h_scale = 128.0
-        self.w_scale = 128.0
+        self.input_size = input_size
+        self.prior_config = prior_config if prior_config is not None else BLAZEFACE_CONFIG
+        self.priorbox = generate_priors(image_size = input_size, config = self.prior_config)
+        self.bgr_means = (104, 117, 123)
     
-    def preprocess(self, images):
+    def preprocess(self, image_path: str):
         """
         图像预处理
         Args:
-            images: 单张图片或图片列表，图片为使用 cv2 读入，格式为 HWC
+            image_path: 图片路径
         Returns:
-            预处理后的批量数据(NCHW)，像素范围[-1,1]
+            预处理后的用于推理的数据 (NCHW)
+            图片信息
         """
-        # 将单张图片转换为批量格式
-        if isinstance(images, np.ndarray) and len(images.shape) == 3:
-            images = np.expand_dims(images, axis=0)
-            
-        # 一次性处理整个批次
-        # 1. 缩放
-        resized = np.array([cv2.resize(img, self.input_size) for img in images])
-        # 2. 归一化到[-1,1]
-        normalized = resized / 127.5 - 1.0
-        # 3. HWC -> NCHW 
-        preprocessed = normalized.transpose(0, 3, 1, 2)
-        
-        # ONNX模型的输入一般要求float32类型,这里确保输入数据类型正确
-        return preprocessed.astype(np.float32)
-    
-    def _decode_boxes(self, raw_boxes):
-        """将预测框解码为实际坐标"""
-        boxes = np.zeros_like(raw_boxes)
-        
-        # 解码中心点坐标
-        x_center = raw_boxes[..., 0] / self.x_scale * self.anchors[:, 2] + self.anchors[:, 0]
-        y_center = raw_boxes[..., 1] / self.y_scale * self.anchors[:, 3] + self.anchors[:, 1]
-        
-        # 解码宽高
-        w = raw_boxes[..., 2] / self.w_scale * self.anchors[:, 2]
-        h = raw_boxes[..., 3] / self.h_scale * self.anchors[:, 3]
-        
-        # 转换为左上右下格式
-        boxes[..., 0] = y_center - h / 2.  # ymin
-        boxes[..., 1] = x_center - w / 2.  # xmin
-        boxes[..., 2] = y_center + h / 2.  # ymax
-        boxes[..., 3] = x_center + w / 2.  # xmax
-        
-        # 解码关键点
-        for k in range(6):
-            offset = 4 + k*2
-            keypoint_x = raw_boxes[..., offset] / self.x_scale * self.anchors[:, 2] + self.anchors[:, 0]
-            keypoint_y = raw_boxes[..., offset + 1] / self.y_scale * self.anchors[:, 3] + self.anchors[:, 1]
-            boxes[..., offset] = keypoint_x
-            boxes[..., offset + 1] = keypoint_y
-            
-        return boxes
-    
-    def _calculate_iou(self, box, boxes):
-        """计算IOU"""
-        # 计算交集
-        xmin = np.maximum(box[1], boxes[:, 1])
-        ymin = np.maximum(box[0], boxes[:, 0])
-        xmax = np.minimum(box[3], boxes[:, 3])
-        ymax = np.minimum(box[2], boxes[:, 2])
-        
-        intersection = np.maximum(0, xmax - xmin) * np.maximum(0, ymax - ymin)
-        
-        # 计算并集
-        box_area = (box[2] - box[0]) * (box[3] - box[1])
-        boxes_area = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
-        union = box_area + boxes_area - intersection
-        
-        return intersection / union
-    
-    def _weighted_non_max_suppression(self, detections):
-        """加权非极大值抑制"""
-        if len(detections) == 0:
-            return []
-            
-        output_detections = []
-        
-        # 按置信度分数降序排序
-        remaining = np.argsort(detections[:, 16])[::-1]
-        
-        while len(remaining) > 0:
-            detection = detections[remaining[0]]
-            first_box = detection[:4]
-            other_boxes = detections[remaining, :4]
-            
-            # 计算IOU
-            ious = self._calculate_iou(first_box, other_boxes)
-            
-            # 找出重叠的检测框
-            mask = ious > self.nms_threshold
-            overlapping = remaining[mask]
-            remaining = remaining[~mask]
-            
-            # 加权平均重叠的检测框
-            if len(overlapping) > 1:
-                coordinates = detections[overlapping, :16]
-                scores = detections[overlapping, 16:17]
-                total_score = np.sum(scores)
-                weighted = np.sum(coordinates * scores, axis=0) / total_score
-                detection = np.concatenate([weighted, [total_score / len(overlapping)]])
-                
-            output_detections.append(detection)
-            
-        return output_detections
+        # 加载并预处理图像
+        # 加载并预处理图像
+        original_image = cv2.imread(image_path)
+        orig_h, orig_w = original_image.shape[:2]
+
+        # 计算缩放比例
+        # 为了保持图像宽高比,取高度和宽度缩放比例的较小值
+        # 例如原图640x480,目标尺寸640x640,则r=1.0
+        r = min(self.input_size[0] / orig_h, self.input_size[1] / orig_w)
+
+        # 计算padding
+        # new_unpad_size 是缩放后的实际尺寸,例如640x480->640x480
+        new_unpad_size = (int(round(orig_w * r)), int(round(orig_h * r)))
+
+        # resize图像
+        # 如果缩放比例不为1,则需要resize
+        # 当r<1时使用INTER_AREA插值(缩小图像),r>1时使用INTER_LINEAR插值(放大图像)
+        resized_image = original_image
+        if r != 1:
+            interp = cv2.INTER_AREA if r < 1 else cv2.INTER_LINEAR
+            resized_image = cv2.resize(original_image, new_unpad_size, interpolation=interp)
+
+        # letterbox padding
+        # dw,dh是需要填充的像素数,例如宽度方向填充(640-480)/2=80个像素
+        dw, dh = (self.input_size[1] - new_unpad_size[0]) // 2, (self.input_size[0] - new_unpad_size[1]) // 2
+        # 计算上下左右需要填充的像素数
+        # 例如640x480的图像,上下各填充80像素变成640x640
+        top, bottom = dh, self.input_size[0] - new_unpad_size[1] - dh
+        left, right = dw, self.input_size[1] - new_unpad_size[0] - dw
+        # 使用固定的灰色值(114,114,114)填充边框
+        after_padding_image = cv2.copyMakeBorder(resized_image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=(114, 114, 114))
+        # 减去RGB均值
+        normalized_image = after_padding_image - self.bgr_means
+        normalized_image = normalized_image.transpose(2, 0, 1)  # HWC to CHW
+        # Add batch dimension (1, C, H, W)
+        image_info = {
+            "height": original_image.shape[0],
+            "width": original_image.shape[1],
+            "path": image_path,
+            "scale": r,
+            "pad": (dw, dh)  # 记录padding信息用于后处理
+        }
+        return np.expand_dims(normalized_image, axis=0).astype(np.float32), image_info
     
     def postprocess(self, ort_outputs, image_info):
         """
         后处理输出结果
         Args:
-            ort_outputs: [raw_boxes, raw_scores] 模型输出
-            image_info: 图像信息
+            ort_outputs: 模型输出
+            image_info: 图片原始信息
         Returns:
             检测结果列表，每个元素是 Nx5 的数组:
-              [ymin,xmin,ymax,xmax] 表示边界框坐标 (相对坐标,范围0-1)
+              [ymin,xmin,ymax,xmax] 表示边界框坐标 使用原始尺寸的绝对坐标
               [score] 表示置信分数
         """
-        raw_boxes, raw_scores = ort_outputs
+        # 解包模型输出
+        # 从ONNX模型输出中提取定位、置信度和关键点信息
+        # outputs[0] - 边界框回归值(loc)
+        # outputs[1] - 置信度分数(conf) 
+        # outputs[2] - 人脸关键点坐标(landmarks)
+        # squeeze(0)用于移除批次维度,因为是单张图片推理
+        loc, conf, landmarks = ort_outputs[0].squeeze(0), ort_outputs[1].squeeze(0), ort_outputs[2].squeeze(0)
+         # 生成先验框
+        boxes = decode_boxes(
+            loc, 
+            self.priorbox, 
+            self.prior_config['variance']
+        )
+        landmarks = decode_landmarks(
+            landmarks, 
+            self.priorbox, 
+            self.prior_config['variance']
+        )
+
+        # 获取padding和缩放信息
+        scale = image_info['scale']
+        dw, dh = image_info['pad']
+
+        # 减去padding并还原缩放
+        boxes[:, [0, 2]] = (boxes[:, [0, 2]] * self.input_size[1] - dw) / scale  # x坐标
+        boxes[:, [1, 3]] = (boxes[:, [1, 3]] * self.input_size[0] - dh) / scale  # y坐标
+
+        # 裁剪到原始图像范围内
+        boxes[:, [0, 2]] = np.clip(boxes[:, [0, 2]], 0, image_info['width'])
+        boxes[:, [1, 3]] = np.clip(boxes[:, [1, 3]], 0, image_info['height'])
+    
+        # 获取置信度分数
+        scores = conf[:, 1]
         
-        # 解码预测框
-        detection_boxes = self._decode_boxes(raw_boxes)
+        # 根据置信度阈值过滤
+        inds = scores > self.conf_threshold
+        boxes, landmarks, scores = boxes[inds], landmarks[inds], scores[inds]
         
-        # sigmoid处理分数
-        raw_scores = np.clip(raw_scores, -self.score_clipping_thresh, self.score_clipping_thresh)
-        detection_scores = 1 / (1 + np.exp(-raw_scores))
-        detection_scores = detection_scores.squeeze(axis=-1)
-        
-        # 应用分数阈值
-        mask = detection_scores >= self.conf_threshold
-        
-        # 处理每个批次的图像
-        output_detections = []
-        for i in range(raw_boxes.shape[0]):
-            boxes = detection_boxes[i, mask[i]]
-            scores = detection_scores[i, mask[i]]
-            
-            # 合并框和分数
-            detections = np.concatenate((boxes, scores[:, np.newaxis]), axis=-1)
-            
-            # 应用 加权非极大值抑制
-            filtered_detections = self._weighted_non_max_suppression(detections)
-            # 如果有检测结果，将其堆叠为数组并只保留边界框和置信度
-            if filtered_detections:
-                filtered_detections = np.stack(filtered_detections)
-                # 只保留边界框坐标(前4个)和置信度(最后1个)
-                filtered_detections = np.concatenate([
-                    filtered_detections[:, :4],  # 边界框坐标
-                    filtered_detections[:, -1:] # 置信度
+        order = scores.argsort()[::-1]
+        boxes, landmarks, scores = boxes[order], landmarks[order], scores[order]
+
+        # 应用NMS
+        detections = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=False)
+        keep = self._nms(detections, self.nms_threshold)
+        detections, landmarks = detections[keep], landmarks[keep]
+
+        result = np.concatenate([
+                    detections[:, 1:2],  # ymin
+                    detections[:, 0:1],  # xmin 
+                    detections[:, 3:4],  # ymax
+                    detections[:, 2:3],  # xmax
+                    detections[:, 4:5]   # score
                 ], axis=1)
-            else:
-                filtered_detections = np.zeros((0, 5))  # 5 = 4(边界框) + 1(置信度)
-            output_detections.append(filtered_detections)
-            
-        return output_detections if len(output_detections) > 1 else output_detections[0]
+        return result
+    
+    def _nms(self, dets, threshold):
+        """
+        应用非极大值抑制(NMS)来减少基于阈值的重叠边界框。
+
+        参数:
+            dets: 检测结果数组,每行格式为 [x1, y1, x2, y2, score]
+            threshold: 用于抑制的 IoU 阈值
+
+        返回:
+            抑制后保留的边界框索引列表
+        """
+        x1 = dets[:, 0]
+        y1 = dets[:, 1]
+        x2 = dets[:, 2]
+        y2 = dets[:, 3]
+        scores = dets[:, 4]
+
+        areas = (x2 - x1 + 1) * (y2 - y1 + 1)
+        order = scores.argsort()[::-1]
+
+        keep = []
+        while order.size > 0:
+            i = order[0]
+            keep.append(i)
+            xx1 = np.maximum(x1[i], x1[order[1:]])
+            yy1 = np.maximum(y1[i], y1[order[1:]])
+            xx2 = np.minimum(x2[i], x2[order[1:]])
+            yy2 = np.minimum(y2[i], y2[order[1:]])
+
+            w = np.maximum(0.0, xx2 - xx1 + 1)
+            h = np.maximum(0.0, yy2 - yy1 + 1)
+            inter = w * h
+            ovr = inter / (areas[i] + areas[order[1:]] - inter)
+
+            inds = np.where(ovr <= threshold)[0]
+            order = order[inds + 1]
+
+        return keep
