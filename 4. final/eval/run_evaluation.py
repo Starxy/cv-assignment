@@ -5,6 +5,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from infer.retinaface_inference import RetinaFaceInference
 from infer.yolov5_inference import YOLOV5FaceInference
 from infer.blazeface_128_inference import BlazeFace128Inference
+from infer.blazeface_inference import BlazeFaceInference
 
 def main():
     # 模型配置
@@ -19,23 +20,34 @@ def main():
             "conf_threshold": 0.02,
             "nms_threshold": 0.4
         },
-        # "yolov5n_0.5_face": {
-        #     "model_path": "models/yolov5face/yolov5n-0.5.onnx",
-        #     "conf_threshold": 0.02,
-        #     "nms_threshold": 0.4
-        # },
-        # "yolov5n_face": {
-        #     "model_path": "models/yolov5face/yolov5n-face.onnx",
-        #     "conf_threshold": 0.02,
-        #     "nms_threshold": 0.4
-        # },
-        # "blazeface": {
-        #     "model_path": "models/blaze_face/blazeface_128.onnx",
-        #     "anchors_path": "models/blaze_face/anchors_128.npy",
-        #     "conf_threshold": 0.75,
-        #     "nms_threshold": 0.3,
-        #     "input_size": (128, 128)
-        # }
+        "yolov5n_0.5_face": {
+            "model_path": "models/yolov5face/yolov5n-0.5.onnx",
+            "conf_threshold": 0.02,
+            "nms_threshold": 0.4
+        },
+        "yolov5n_face": {
+            "model_path": "models/yolov5face/yolov5n-face.onnx",
+            "conf_threshold": 0.02,
+            "nms_threshold": 0.4
+        },
+        "blazeface_128": {
+            "model_path": "models/blaze_face_128/blazeface_128.onnx",
+            "anchors_path": "models/blaze_face_128/anchors_128.npy",
+            "conf_threshold": 0.75,
+            "nms_threshold": 0.3,
+        },
+        "blazeface_320": {
+            "model_path": "models/blaze_face/blazeface_320.onnx",
+            "conf_threshold": 0.75,
+            "nms_threshold": 0.3,
+            "input_size": (320, 320)
+        },
+        "blazeface_640": {
+            "model_path": "models/blaze_face/blazeface_640.onnx",
+            "conf_threshold": 0.75,
+            "nms_threshold": 0.3,
+            "input_size": (640, 640)
+        },
     }
     
     # 推理类映射
@@ -44,7 +56,9 @@ def main():
         "retinaface_mv2": RetinaFaceInference,
         "yolov5n_0.5_face": YOLOV5FaceInference,
         "yolov5n_face": YOLOV5FaceInference,
-        "blazeface_128": BlazeFace128Inference
+        "blazeface_128": BlazeFace128Inference,
+        "blazeface_320": BlazeFaceInference,
+        "blazeface_640": BlazeFaceInference
     }
     
     # 初始化评估器
