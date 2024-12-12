@@ -65,8 +65,8 @@ def main():
     evaluator = ModelEvaluator(
         model_configs=model_configs,
         inference_classes=inference_classes,
-        dataset_path="C:\\Project\\ai\\cv-assignment\\4. final\\dataset\\wilderface_val",
-        output_dir="C:\\Project\\ai\\cv-assignment\\4. final\\eval\\results"
+        dataset_path="C:\\Project\\ai\\cv-assignment\\4. final\\dataset\\1face",
+        output_dir="C:\\Project\\ai\\cv-assignment\\4. final\\eval\\1face_results"
     )
     
     # 评估所有模型
