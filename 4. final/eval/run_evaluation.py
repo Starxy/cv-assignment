@@ -81,7 +81,12 @@ def main():
     with open(summary_path, "w", encoding="utf-8") as f:
         f.write("评估结果汇总:\n")
         for model_name, result in results.items():
+            # 获取模型文件大小（KB）
+            model_path = model_configs[model_name]["model_path"]
+            model_size = os.path.getsize(model_path) / 1024  # 转换为KB
+            
             summary = f"\n{model_name}:\n"
+            summary += f"模型大小: {model_size:.2f}KB\n"
             summary += f"FPS: {result['fps']:.2f}\n"
             summary += f"总图片数: {result['total_images']}\n" 
             summary += f"总耗时: {result['total_time']:.2f}秒\n"
