@@ -40,12 +40,11 @@ class ModelEvaluator:
                     test_dataset.append(os.path.join(root, file))
         return test_dataset
         
-    def evaluate_model(self, model_name: str, batch_size: int = 1):
+    def evaluate_model(self, model_name: str):
         """
         评估单个模型
         Args:
             model_name: 模型名称
-            batch_size: 已废弃参数，保留是为了向后兼容
         Returns:
             性能指标字典
         """
@@ -79,12 +78,18 @@ class ModelEvaluator:
                 print(f"处理图片 {img_path} 时出错: {str(e)}")
                 continue
                 
-            # 打印进度
+            # 打印进度并记录到文件
             if (i + 1) % 100 == 0:
                 processed = i + 1
                 avg_time = total_time / processed
                 fps = 1 / avg_time
-                print(f'进度: {processed}/{total_images} 平均推理时间: {avg_time:.4f}s FPS: {fps:.2f}')
+                progress_msg = f'进度: {processed}/{total_images} 平均推理时间: {avg_time:.4f}s FPS: {fps:.2f}'
+                print(progress_msg)
+                
+                # 追加记录到process.txt
+                process_file = os.path.join(output_path, 'process.txt')
+                with open(process_file, 'a', encoding='utf-8') as f:
+                    f.write(progress_msg + '\n')
         
         # 计算最终性能指标
         avg_time = total_time / total_images

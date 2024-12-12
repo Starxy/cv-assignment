@@ -74,15 +74,20 @@ def main():
     for model_name in model_configs.keys():
         print(f"\n开始评估模型: {model_name}")
         results[model_name] = evaluator.evaluate_model(model_name)
-        
+
     # 输出评估结果
     print("\n评估结果汇总:")
-    for model_name, result in results.items():
-        print(f"\n{model_name}:")
-        print(f"FPS: {result['fps']:.2f}")
-        print(f"总图片数: {result['total_images']}")
-        print(f"总耗时: {result['total_time']:.2f}秒")
-        print(f"平均推理时间: {result['avg_time']*1000:.2f}ms")
+    summary_path = os.path.join(evaluator.output_dir, "summary.txt")
+    with open(summary_path, "w", encoding="utf-8") as f:
+        f.write("评估结果汇总:\n")
+        for model_name, result in results.items():
+            summary = f"\n{model_name}:\n"
+            summary += f"FPS: {result['fps']:.2f}\n"
+            summary += f"总图片数: {result['total_images']}\n" 
+            summary += f"总耗时: {result['total_time']:.2f}秒\n"
+            summary += f"平均推理时间: {result['avg_time']*1000:.2f}ms\n"
+            print(summary)
+            f.write(summary)
 
 if __name__ == "__main__":
     main() 
