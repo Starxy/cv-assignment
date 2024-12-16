@@ -439,7 +439,7 @@
 \begin{frame}{评估指标}
     \begin{itemize}
         \item 检测精度: 使用标准评估代码计算各模型在 WIDER FACE 数据集上的精度，同时在自建数据集 light\_face 上计算 mAP
-        \item 计算效率: 在 ONNX Runtime 上测试推理时延
+        \item 计算效率: 在 ONNX Runtime 上推理，计算平均每秒处理帧数 FPS
         \item 模型大小: 对比导出为 ONNX 格式后各模型的大小
     \end{itemize}
 \end{frame}
