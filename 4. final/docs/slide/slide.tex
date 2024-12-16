@@ -201,7 +201,7 @@
 
 % 2.2 SqueezeNet
 \subsection{SqueezeNet}
-\begin{frame}{SqueezeNet 架构}
+\begin{frame}{SqueezeNet}
     \begin{block}{主要特点}
         \begin{itemize}
             \item 2016 年 2 月由伯克利和斯坦福研究人员提出，是较早提出的一个轻量化神经网络
@@ -218,7 +218,7 @@
     \end{block}
 \end{frame}
 
-\begin{frame}{Fire Module}
+\begin{frame}{SqueezeNet - Fire Module}
     \begin{itemize}
         \item 核心组成部分:
         \begin{itemize}
@@ -233,7 +233,7 @@
     \end{figure}
 \end{frame}
 
-\begin{frame}{SqueezeNet 性能对比}
+\begin{frame}{SqueezeNet - 性能对比}
     \begin{figure}
         \centering
         \includegraphics[width=0.8\linewidth]{pic/squeezenet_vs_alexnet.png}
@@ -248,7 +248,7 @@
 
 % 2.3 MobileNet
 \subsection{MobileNet}
-\begin{frame}{MobileNet 架构}
+\begin{frame}{MobileNet}
 
     \begin{itemize}
         \item 2017 年 4 月由 Google 团队提出
@@ -280,7 +280,7 @@
     \end{figure}
 \end{frame}
 
-\begin{frame}{深度可分离卷积参数量分析}
+\begin{frame}{MobileNet - 深度可分离卷积参数量分析}
     \begin{block}{参数量}
         \begin{equation*}
             P_{std} = K \times K \times C \times N = K^2 \times C \times N
@@ -298,7 +298,7 @@
     当$K=3$时，压缩比约为 9 倍
 \end{frame}
 
-\begin{frame}{MobileNet 性能对比}
+\begin{frame}{MobileNet - 性能对比}
     \begin{figure}
         \centering
         \includegraphics[width=0.8\linewidth]{pic/mobilenet_comp.png}
@@ -425,14 +425,13 @@
 
     \begin{figure}[h]
         \centering
-        \includegraphics[width=0.6\textwidth]{pic/pipeline.jpg}
+        \includegraphics[width=0.55\textwidth]{pic/pipeline.jpg}
         \caption{模型转换流程}
     \end{figure}
-
     \begin{itemize}
         \item 统一导出为 ONNX 格式
-        \item 使用 ONNX Runtime 作为推理引擎
-        \item 硬件: i5-10400 CPU (0.5TFLOPS)
+        \item 使用 ONNX Runtime 作为推理引擎，在 CPU 上进行推理
+        \item 硬件环境为 i5-10400 约 550 GFLOPS ，作为对比，树莓派 4B 为 13 GFLOPS，高通骁龙8至尊版为 3.3 TFLOPS
     \end{itemize}
 \end{frame}
 
@@ -507,13 +506,13 @@
         \begin{column}{0.5\textwidth}
             \begin{figure}
                 \includegraphics[width=\textwidth]{pic/ap_comparison.png}
-                \caption{不同难度级别下的检测精度对比}
+                \caption{不同难度级别下的检测精度}
             \end{figure}
         \end{column}
         \begin{column}{0.5\textwidth}
             \begin{figure}
                 \includegraphics[width=\textwidth]{pic/one_face_ap.png}
-                \caption{单人人脸场景下的检测精度对比}
+                \caption{单人人脸场景下的检测精度}
             \end{figure}
         \end{column}
     \end{columns}
