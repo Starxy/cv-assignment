@@ -345,6 +345,7 @@
             \item 在如今端侧轻量化模型实践中应用广泛
             \item 在 WiderFace 数据集取得较高排名
         \end{itemize}
+        \item 其他模型：YuNet、FaceBoxes、MogFace 等也有广泛应用，但未在本次实验中进行对比
     \end{itemize}
 \end{frame}
 
@@ -422,12 +423,12 @@
     \begin{figure}[h]
         \centering
         \includegraphics[width=0.6\textwidth]{pic/pipeline.jpg}
-        \caption{ONNX模型转换流程}
+        \caption{模型转换流程}
     \end{figure}
 
     \begin{itemize}
-        \item 统一导出为ONNX格式
-        \item 使用ONNX Runtime作为推理引擎
+        \item 统一导出为 ONNX 格式
+        \item 使用 ONNX Runtime 作为推理引擎
         \item 硬件: i5-10400 CPU (0.5TFLOPS)
     \end{itemize}
 \end{frame}
@@ -443,7 +444,7 @@
 % 4.2 数据集
 \subsection{数据集}
 \begin{frame}{实验数据集}
-    \begin{block}{WIDER FACE验证集}
+    \begin{block}{WIDER FACE 验证集}
         \begin{itemize}
             \item 人脸检测领域标准基准数据集
             \item 具有广泛代表性和权威性
@@ -454,9 +455,9 @@
     \begin{block}{自建单人人脸数据集 light\_face}
         \begin{itemize}
             \item 通过笔记本和手机前置摄像头采集，考虑姿态角度和光照变化
-            \item 约1000张图像样本
+            \item 约 1000 张图像样本
             \item 贴近端侧实际应用场景
-            \item 使用腾讯云API进行标注
+            \item 使用腾讯云 API 进行标注
         \end{itemize}
     \end{block}
 \end{frame}
@@ -472,21 +473,21 @@
                 \hline
                 Model & Size(MB) & FPS & Easy & Medium & Hard & light\_face \\
                 \hline
-                retinaface\_mv1 & 1.66 & 8.68 & 0.91 & 0.88 & 0.73 & \underline{0.99} \\
-                retinaface\_mv2 & 11.93 & 4.15 & 0.94 & \underline{0.92} & \underline{0.82} & 0.99 \\
-                yolov5n\_0.5\_face & 5.65 & 22.23 & 0.91 & 0.88 & 0.75 & 0.99 \\
-                yolov5n\_face & 10.51 & 12.90 & \underline{0.94} & 0.92 & 0.81 & 0.99 \\
-                blazeface\_128 & \underline{0.44} & \underline{70.79} & 0.18 & 0.10 & 0.04 & 0.67 \\
-                blazeface\_320 & 0.68 & 46.46 & 0.60 & 0.46 & 0.20 & 0.93 \\
-                blazeface\_640 & 0.68 & 16.26 & 0.80 & 0.64 & 0.35 & 0.98 \\
+                retinaface\_mv1 & 1.66 & 8.68 & 0.91 & 0.88 & 0.73 & \underline{\textbf{0.991}} \\
+                retinaface\_mv2 & 11.93 & 4.15 & 0.94 & \underline{\textbf{0.92}} & \underline{\textbf{0.82}} & 0.991 \\
+                yolov5n\_0.5\_face & 5.65 & 22.23 & 0.91 & 0.88 & 0.75 & 0.987 \\
+                yolov5n\_face & 10.51 & 12.90 & \underline{\textbf{0.94}} & 0.92 & 0.81 & 0.987 \\
+                blazeface\_128 & \underline{\textbf{0.44}} & \underline{\textbf{70.79}} & 0.18 & 0.10 & 0.04 & 0.667 \\
+                blazeface\_320 & 0.68 & 46.46 & 0.60 & 0.46 & 0.20 & 0.932 \\
+                blazeface\_640 & 0.68 & 16.26 & 0.80 & 0.64 & 0.35 & 0.984 \\
                 \hline
             \end{tabular}
         }
     \end{table}
 
     \begin{itemize}
-        \item RetinaFace和YOLOv5系列精度高但模型较大
-        \item BlazeFace系列速度快且轻量，但精度有所牺牲
+        \item RetinaFace 和 YOLO5Face 系列精度高但模型较大
+        \item BlazeFace 系列速度快且轻量，但精度有所牺牲
         \item yolov5n\_0.5\_face 在模型大小、计算效率和精度上表现均衡
     \end{itemize}
 \end{frame}
@@ -521,8 +522,8 @@
         \begin{itemize}
             \footnotesize
             \item 推荐: YOLOv5n\_face 或 RetinaFace\_mv2
-            \item 特点: 各难度级别AP值均高(>0.81)
-            \item 代价: 模型较大(10-12MB)，速度较慢(4-13FPS)
+            \item 特点: 各难度级别 AP 值均高 (>0.81)
+            \item 代价: 模型较大 (10-12MB)，速度较慢 (4-13FPS)
             \item 适用: 安防监控，门禁考勤等
         \end{itemize}
     \end{block}
@@ -531,8 +532,8 @@
         \begin{itemize}
             \footnotesize
             \item 推荐: BlazeFace\_320
-            \item 特点: 体积小(0.68MB)，速度快(46FPS)，单人人脸识别场景AP达0.93
-            \item 代价: 非单人场景下精度较低(0.6-0.8)
+            \item 特点: 体积小 (0.68MB)，速度快 (46FPS)，单人人脸识别场景 AP 达 0.93
+            \item 代价: 非单人场景下精度较低 (0.6-0.8)
             \item 适用: 移动端实时检测场景，相机应用、视频会议、AR 试妆等
         \end{itemize}
     \end{block}
@@ -544,8 +545,8 @@
         \begin{itemize}
             \footnotesize
             \item 推荐: BlazeFace\_128
-            \item 特点: 最小体积(0.44MB)，最快速度(70+FPS)，在 light\_face 数据集上精度尚可(0.67)
-            \item 代价: 精度较低(0.18-0.6)
+            \item 特点: 最小体积 (0.44MB)，最快速度 (70+FPS)，在 light\_face 数据集上精度尚可 (0.67)
+            \item 代价: 精度较低 (0.18-0.6)
             \item 适用: 资源受限的 IoT 设备，例如智能门锁、手表、玩具等
         \end{itemize}
     \end{block}
@@ -553,7 +554,7 @@
         \begin{itemize}
             \footnotesize
             \item 推荐: YOLOv5n\_0.5\_face
-            \item 特点: 中等体积(5MB)，较快速度(25FPS)，各难度级别AP值均衡(0.7-0.8)
+            \item 特点: 中等体积 (5MB)，较快速度 (25FPS)，各难度级别 AP 值均衡 (0.7-0.8)
             \item 代价: 在各方面都不是最优
             \item 适用: 需要在资源和性能间取得平衡的场景，如移动端后置摄像头应用
         \end{itemize}
