@@ -1,0 +1,117 @@
+\mode<presentation>
+
+% 定义一个布尔变量用于控制是否显示章节标题
+\newif\ifbeamer@secheader
+\beamer@secheaderfalse
+
+% 处理beamer的选项
+\ProcessOptionsBeamer
+
+% 使用smoothbars外观主题,设置页脚显示作者机构标题,不显示子章节
+\useoutertheme[footline=authorinstitutetitle,subsection=false]{smoothbars}
+
+% 自定义页脚样式
+\makeatletter
+% 定义页码分隔符
+\newcommand{\frameofframes}{/}
+\newcommand{\setframeofframes}[1]{\renewcommand{\frameofframes}{#1}}
+
+% 设置页脚模板,包含:
+% - 上分隔线
+% - 作者和机构信息
+% - 标题和页码
+% - 下分隔线
+\setbeamertemplate{footline} 
+  {%
+    \begin{beamercolorbox}[colsep=1.5pt]{upper separation line foot}
+    \end{beamercolorbox}
+    \begin{beamercolorbox}[ht=2.5ex,dp=1.125ex,%
+      leftskip=.3cm,rightskip=.3cm plus1fil]{author in head/foot}%
+      \leavevmode{\usebeamerfont{author in head/foot}\insertshortauthor}%
+      \hfill%
+      {\usebeamerfont{institute in head/foot}\usebeamercolor[fg]{institute in head/foot}\insertshortinstitute}%
+    \end{beamercolorbox}%
+    \begin{beamercolorbox}[ht=2.5ex,dp=1.125ex,%
+      leftskip=.3cm,rightskip=.3cm plus1fil]{title in head/foot}%
+      {\usebeamerfont{title in head/foot}\insertshorttitle}%
+      \hfill%
+      {\usebeamerfont{frame number}\usebeamercolor[fg]{frame number}\insertframenumber~\frameofframes~\inserttotalframenumber}
+    \end{beamercolorbox}%
+    \begin{beamercolorbox}[colsep=1.5pt]{lower separation line foot}
+    \end{beamercolorbox}
+  }
+\makeatother
+
+% 使用circles内部主题
+\useinnertheme{circles}
+
+% 定义北交大蓝色(RGB: 2,49,116)
+\xdefinecolor{bjtu}{RGB}{2,49,116}
+
+% 定义红色(RGB: 200,62,71) 
+\xdefinecolor{hongse}{RGB}{200,62,71}
+
+% 设置各种beamer元素的颜色
+\setbeamercolor{footline}{bg=bjtu}
+\setbeamercolor{frametitle}{bg=bjtu, fg=white}
+\setbeamercolor{title}{bg=bjtu}
+\setbeamerfont{frametitle}{size=\large}
+\setbeamertemplate{bibliography item}[text]
+\setbeamertemplate{caption}[numbered]
+
+% 设置调色板颜色
+\setbeamercolor{palette primary}{use=structure,fg=white,bg=structure.fg}
+\setbeamercolor{palette secondary}{use=structure,fg=white,bg=structure.fg!75!black}
+\setbeamercolor{palette tertiary}{use=structure,fg=white,bg=structure.fg!50!black}
+\setbeamercolor{palette quaternary}{fg=white,bg=structure.fg!50!black}
+\setbeamercolor{titlelike}{parent=palette primary}
+
+% 设置区块、项目等元素的颜色
+\setbeamercolor{block title}{bg=bjtu,fg=white}
+\setbeamercolor*{block title example}{use={normal text,example text},bg=white,fg=bjtu}
+\setbeamercolor{fine separation line}{}
+\setbeamercolor{item projected}{fg=white}
+\setbeamercolor{structure}{fg=bjtu}
+
+% 设置侧边栏相关颜色
+\setbeamercolor{palette sidebar primary}{use=normal text,fg=normal text.fg}
+\setbeamercolor{palette sidebar quaternary}{use=structure,fg=structure.fg}
+\setbeamercolor{palette sidebar secondary}{use=structure,fg=structure.fg}
+\setbeamercolor{palette sidebar tertiary}{use=normal text,fg=normal text.fg}
+\setbeamercolor{section in sidebar}{fg=brown}
+\setbeamercolor{section in sidebar shaded}{fg=grey}
+\setbeamercolor{separation line}{}
+\setbeamercolor{sidebar}{bg=bjtu}
+\setbeamercolor{sidebar}{parent=palette primary}
+\setbeamercolor{subsection in sidebar}{fg=brown}
+\setbeamercolor{subsection in sidebar shaded}{fg=grey}
+
+% 在每个章节开始时显示目录
+% 在每个章节开始时自动插入目录页
+\AtBeginSection[]{
+	\begin{frame}
+    % 设置目录页标题为粗体
+    \frametitle{\textbf{目录}}
+		\tableofcontents[
+      % sectionstyle=show/shaded 表示:
+      % - 当前章节高亮显示
+      % - 其他章节显示为灰色
+      sectionstyle=show/shaded,
+      % subsectionstyle=show/shaded/hide 表示:
+      % - 显示当前小节
+      % - 其他小节显示为灰色
+      % - 隐藏未提到的小节
+      subsectionstyle=show/show/hide
+    ]
+	\end{frame}
+}
+
+% 在每个子章节开始时显示目录
+% \AtBeginSubsection[]{
+% 	\begin{frame}
+% 		\tableofcontents[sectionstyle=show/shaded,subsectionstyle=show/shaded/hide,subsubsectionstyle=show/shaded/hide]
+% 	\end{frame}
+% }
+
+\mode
+<all>
