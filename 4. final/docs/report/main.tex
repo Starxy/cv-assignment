@@ -1,0 +1,119 @@
+\documentclass{article}
+\usepackage{SDUstyle}
+\sloppy
+
+\fancyhf{}
+\fancyhead[L]{
+    \begin{minipage}[c]{0.2\textwidth}
+        \includegraphics[height=11mm]{imgs/logo.png}  %用于设置页眉左侧的图片
+    \end{minipage}
+}
+\fancyhead[C]{端侧轻量级人脸检测模型对比研究与性能评估}     %用于设置页眉中间的文字
+\setlength{\headheight}{32pt}
+
+\fancyfoot[C]{\thepage}
+% 设置页眉宽度为文本宽度
+\setlength{\headwidth}{\textwidth}
+% 设置页眉左侧偏移量,使其水平居中
+\fancyhfoffset[L]{\dimexpr0.5\textwidth-0.5\textwidth\relax}
+
+% 设置超链接颜色
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue, % 超链接的颜色
+    urlcolor=red,   % URL 的颜色
+    citecolor=green % 引用的颜色
+}
+
+
+\begin{document}
+\pagenumbering{Roman}
+\setcounter{page}{0}
+
+\begin{titlepage}
+    \centering
+    \includegraphics[width=0.65\textwidth]{./imgs/logo_text.png}
+    \par\vspace{1.5cm}
+    {\Huge \heiti 端侧轻量级人脸检测模型对比研究与性能评估 \par}
+    \vspace{1cm}
+    {\Large \heiti 《计算机视觉》Final Project \par}
+    \vspace{5cm}
+
+    \begin{center}
+        {\Large
+        \makebox[4em][s]{\heiti 姓名}:\underline{\makebox[15em][c]{\heiti 董霁兴}}\\
+        \makebox[4em][s]{\heiti 学号}:\underline{\makebox[15em][c]{\heiti 2024317181}}\\
+        \makebox[4em][s]{\heiti 班级}:\underline{\makebox[15em][c]{\heiti 计算机技术2班}}\\
+        \makebox[4em][s]{\heiti 学院}:\underline{\makebox[15em][c]{\heiti 信息科学与工程学院}}\\
+        }
+    \end{center}
+
+    \vfill
+    \today % 日期
+\end{titlepage}
+\setcounter{page}{1}    % 将页码计数器重置为1,使正文从第1页开始计数
+\thispagestyle{empty}   % 将当前页面样式设置为空,即不显示页眉页脚和页码
+
+\sectionfont{\centering}
+\clearpage
+\newpage
+
+\setcounter{page}{1}
+\section*{摘要}
+\addcontentsline{toc}{section}{摘要 Abstract}   %用来目录中添加相应的条目
+随着人工智能技术在移动设备和物联网领域的广泛应用，端侧人脸检测的需求日益增长。本文对当前主流的轻量级人脸检测模型进行了系统的对比研究。首先介绍了SqueezeNet、MobileNet和ShuffleNet等轻量化卷积神经网络的基本原理，随后重点分析了RetinaFace、BlazeFace和YOLO5Face三类代表性人脸检测模型的特点。实验中，我们将这些��型统一转换为ONNX格式，使用ONNX Runtime进行推理，并在WIDER FACE数据集和自建的单人人脸数据集上进行了全面评估。实验结果表明：RetinaFace和YOLO5Face系列在检测精度上具有优势，BlazeFace系列则在速度和模型大小方面表现突出，而YOLOv5n-0.5在各项性能指标上较为均衡。基于实验结果，本文针对不同应用场景提出了具体的模型选择建议，为端侧人脸检测的实际应用提供了重要参考。
+
+\section*{Abstract}
+With the widespread application of artificial intelligence technology in mobile devices and IoT, the demand for edge-side face detection has been growing rapidly. This paper presents a systematic comparative study of current mainstream lightweight face detection models. We first introduce the basic principles of lightweight convolutional neural networks including SqueezeNet, MobileNet, and ShuffleNet, followed by a detailed analysis of three representative face detection models: RetinaFace, BlazeFace, and YOLO5Face. In our experiments, these models were uniformly converted to ONNX format and inferenced using ONNX Runtime, with comprehensive evaluations conducted on both the WIDER FACE dataset and our self-built single-face dataset. The results demonstrate that RetinaFace and YOLO5Face series excel in detection accuracy, while BlazeFace series shows advantages in speed and model size, and YOLOv5n-0.5 achieves a balanced performance across all metrics. Based on these findings, we provide specific model selection recommendations for different application scenarios, offering valuable reference for practical implementation of edge-side face detection.
+
+\vfill % 用于在垂直方向上填充剩余空间,使内容均匀分布
+
+% \clearpage 命令用于:
+% 1. 将所有未处理的浮动体(如图表)强制输出到当前页
+% 2. 结束当前页并开始新的一页
+% 3. 清除当前页面的所有内容
+\clearpage
+
+\addcontentsline{toc}{section}{目录 Table of Contents}
+\thispagestyle{empty}
+\hypersetup{linkcolor=black}
+\tableofcontents
+\hypersetup{linkcolor=blue}
+\newpage
+
+
+\setcounter{page}{1}
+\pagenumbering{arabic}
+
+\section{引言}
+\subsection{研究背景}
+\subsection{技术发展历程}
+\subsection{端侧人脸检测的意义}
+\clearpage
+
+\section{轻量化卷积网络}
+\subsection{SqueezeNet}
+\subsection{MobileNet}
+\subsection{ShuffleNet}
+\clearpage
+
+\section{轻量级人脸检测模型}
+\subsection{RetinaFace}
+\subsection{BlazeFace}
+\subsection{YOLO5Face}
+\clearpage
+
+\section{模型对比试验}
+\subsection{实验设计}
+\subsection{数据集}
+\subsection{实验结果与分析}
+\subsection{应用场景建议}
+\clearpage
+
+\section{总结与展望}
+\clearpage
+% 参考文献部分
+\bibliographystyle{plain}
+\bibliography{refs}
+
+\end{document}
