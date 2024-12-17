@@ -2,6 +2,10 @@ import os
 import time
 from typing import Dict, Type
 import cv2
+import random
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 class ModelEvaluator:
     def __init__(
@@ -28,8 +32,11 @@ class ModelEvaluator:
         self.testset_folder = os.path.join(dataset_path, "images")
         self.test_dataset = self._load_dataset()
         
+        self.current_fig = None
+        self.axes = None
+        
     def _load_dataset(self):
-        """递归获取所有图片文件的绝对路径"""
+        """递归获取所有图片文���的绝对路径"""
         if not os.path.exists(self.testset_folder):
             raise FileNotFoundError(f"找不到数据集目录: {self.testset_folder}")
             
@@ -73,6 +80,9 @@ class ModelEvaluator:
                 
                 # 保存检测结果
                 self.save_detection_result(detections, img_path, output_path)
+                
+                # 对每张图片进行可视化，不再随机抽样
+                self.visualize_detection(img_path, detections, output_path, i)
                 
             except Exception as e:
                 print(f"处理图片 {img_path} 时出错: {str(e)}")
@@ -138,3 +148,72 @@ class ModelEvaluator:
                 
                 # 按WIDER FACE格式写入:x y width height score
                 f.write(f"{x} {y} {width} {height} {score}\n")
+
+    def visualize_detection(self, img_path: str, detections: np.ndarray, output_path: str, counter: int):
+        """
+        可视化检测结果并保存，每6张图片合并为一个2x3的大图
+        Args:
+            img_path: 图像路径
+            detections: 检测结果 [N,5]
+            output_path: 输出目录
+            counter: 图像计数器
+        """
+        # 创建可视化保存目录
+        vis_dir = os.path.join(output_path, 'visualizations')
+        os.makedirs(vis_dir, exist_ok=True)
+        
+        # 读取图像
+        img = cv2.imread(img_path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        
+        # 计算当前图片在大图中的位置
+        grid_idx = counter % 6
+        row = grid_idx // 3
+        col = grid_idx % 3
+        
+        # 如果是新的大图的第一张图片，创建新的figure
+        if grid_idx == 0:
+            plt.ioff()
+            self.current_fig, self.axes = plt.subplots(2, 3, figsize=(30, 20))
+            self.axes = self.axes.ravel()
+        
+        # 在对应位置绘制图片和检测框
+        ax = self.axes[grid_idx]
+        ax.grid(False)
+        ax.axis('off')
+        ax.imshow(img)
+        
+        # 绘制检测框
+        for det in detections:
+            ymin, xmin, ymax, xmax = det[:4]
+            score = det[4]
+            
+            rect = patches.Rectangle(
+                (xmin, ymin), 
+                xmax - xmin, 
+                ymax - ymin,
+                linewidth=2.5, 
+                edgecolor="#FFD700", 
+                facecolor="none",
+                alpha=score
+            )
+            ax.add_patch(rect)
+        
+        # 如果已经收集了6张图片，保存大图并清理
+        if grid_idx == 5:
+            model_name = os.path.basename(output_path)
+            save_path = os.path.join(vis_dir, f'{model_name}_batch_{counter//6:03d}.jpg')
+            plt.savefig(save_path, bbox_inches='tight', pad_inches=0.1)
+            plt.close(self.current_fig)
+        
+        # 处理最后一批不足6张图片的情况
+        elif counter == len(self.test_dataset) - 1:
+            # 隐藏未使用的子图
+            for i in range(grid_idx + 1, 6):
+                self.axes[i].axis('off')
+                self.axes[i].set_visible(False)
+            
+            model_name = os.path.basename(output_path)
+            save_path = os.path.join(vis_dir, f'{model_name}_batch_{counter//6:03d}.jpg')
+            plt.savefig(save_path, bbox_inches='tight', pad_inches=0.1)
+            plt.close(self.current_fig)
